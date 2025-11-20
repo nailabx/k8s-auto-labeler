@@ -33,3 +33,4 @@ go.work.sum
 
 # remove plan folder
 plan
+data/g.token
