@@ -1,0 +1,28 @@
+{
+      "teams": [
+        {
+          "namespace": "team-a-namespace",
+          "teamName": "teamA",
+          "assetId": "1234",
+          "applicationName": "1234",
+          "metadata": {
+            "assetGroupName": "",
+            "members": [
+              { "name": "John Doe", "role": "Lead developer" }
+            ]
+          }
+        },
+        {
+          "namespace": "team-b-namespace",
+          "teamName": "teamB",
+          "assetId": "5678",
+          "applicationName": "5678",
+          "metadata": {
+            "assetGroupName": "",
+            "members": [
+              { "name": "Jane Smith", "role": "Project manager" }
+            ]
+          }
+        }
+      ]
+    }
