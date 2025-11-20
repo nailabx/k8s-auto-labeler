@@ -1,5 +1,15 @@
-# Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+# Image/registry defaults for build + push targets.
+# Override IMAGE_TAG (or IMG) when cutting releases.
+REGISTRY ?= quay.io/nailabx
+IMAGE_NAME ?= k8s-auto-labeler
+IMAGE_TAG ?= latest
+IMG ?= $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+
+# Distribution directories + Helm plugin configuration.
+DIST_DIR ?= dist
+HELM_PLUGIN ?= helm/v2-alpha
+HELM_MANIFESTS ?= $(DIST_DIR)/install.yaml
+HELM_OUTPUT_DIR ?= $(DIST_DIR)
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -123,6 +133,9 @@ docker-build: ## Build docker image with the manager.
 docker-push: ## Push docker image with the manager.
 	$(CONTAINER_TOOL) push ${IMG}
 
+.PHONY: docker-publish
+docker-publish: docker-build docker-push ## Build and push docker image to the configured registry.
+
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
 # - be able to use docker buildx. More info: https://docs.docker.com/build/buildx/
@@ -142,9 +155,13 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
-	mkdir -p dist
+	mkdir -p $(DIST_DIR)
 	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMG}
-	"$(KUSTOMIZE)" build config/default > dist/install.yaml
+	"$(KUSTOMIZE)" build config/default > $(HELM_MANIFESTS)
+
+.PHONY: helm-build
+helm-build: build-installer kubebuilder ## Build a Helm chart from the installer bundle via the Kubebuilder Helm plugin.
+	"$(KUBEBUILDER)" edit --plugins=$(HELM_PLUGIN) --manifests=$(HELM_MANIFESTS) --output-dir=$(HELM_OUTPUT_DIR)
 
 ##@ Deployment
 
@@ -183,12 +200,14 @@ KUBECTL ?= kubectl
 KIND ?= kind
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
+KUBEBUILDER ?= $(LOCALBIN)/kubebuilder
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.7.1
 CONTROLLER_TOOLS_VERSION ?= v0.19.0
+KUBEBUILDER_VERSION ?= v4.10.1
 
 #ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
 ENVTEST_VERSION ?= $(shell v='$(call gomodver,sigs.k8s.io/controller-runtime)'; \
@@ -210,6 +229,11 @@ $(KUSTOMIZE): $(LOCALBIN)
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
+
+.PHONY: kubebuilder
+kubebuilder: $(KUBEBUILDER) ## Download kubebuilder CLI locally if necessary.
+$(KUBEBUILDER): $(LOCALBIN)
+	$(call go-install-tool,$(KUBEBUILDER),sigs.k8s.io/kubebuilder/v4/cmd,$(KUBEBUILDER_VERSION))
 
 .PHONY: setup-envtest
 setup-envtest: envtest ## Download the binaries required for ENVTEST in the local bin directory.
